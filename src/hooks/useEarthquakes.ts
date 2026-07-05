@@ -32,9 +32,11 @@ type UsgsResponse = {
 type EarthquakeState = {
   data: Earthquake[]
   loading: boolean
+  refreshing: boolean
   error: string | null
   empty: boolean
   lastUpdated: number | null
+  newEventIds: Set<string>
 }
 
 function isValidCoordinate(lng: unknown, lat: unknown) {
@@ -77,16 +79,23 @@ export function useEarthquakes(): EarthquakeState {
   const [state, setState] = useState<EarthquakeState>({
     data: [],
     loading: true,
+    refreshing: false,
     error: null,
     empty: false,
     lastUpdated: null,
+    newEventIds: new Set(),
   })
 
   useEffect(() => {
     const controller = new AbortController()
 
-    async function loadEarthquakes() {
-      setState((current) => ({ ...current, loading: true, error: null }))
+    async function loadEarthquakes(isRefresh = false) {
+      setState((current) => ({
+        ...current,
+        loading: !isRefresh && current.data.length === 0,
+        refreshing: isRefresh,
+        error: null,
+      }))
 
       try {
         const response = await fetch(USGS_DAY_FEED, {
@@ -103,31 +112,49 @@ export function useEarthquakes(): EarthquakeState {
           .filter((quake): quake is Earthquake => quake !== null)
           .sort((a, b) => b.time - a.time)
 
-        setState({
-          data,
-          loading: false,
-          error: null,
-          empty: data.length === 0,
-          lastUpdated: Date.now(),
+        setState((current) => {
+          const previousIds = new Set(current.data.map((quake) => quake.id))
+          const newEventIds =
+            isRefresh && previousIds.size > 0
+              ? new Set(data.filter((quake) => !previousIds.has(quake.id)).map((quake) => quake.id))
+              : new Set<string>()
+
+          return {
+            data,
+            loading: false,
+            refreshing: false,
+            error: null,
+            empty: data.length === 0,
+            lastUpdated: Date.now(),
+            newEventIds,
+          }
         })
       } catch (error) {
         if (controller.signal.aborted) {
           return
         }
 
-        setState({
-          data: [],
+        setState((current) => ({
+          data: current.data,
           loading: false,
+          refreshing: false,
           error: error instanceof Error ? error.message : 'Failed to load earthquakes',
-          empty: false,
-          lastUpdated: null,
-        })
+          empty: current.data.length === 0,
+          lastUpdated: current.lastUpdated,
+          newEventIds: new Set(),
+        }))
       }
     }
 
     void loadEarthquakes()
+    const intervalId = window.setInterval(() => {
+      void loadEarthquakes(true)
+    }, 60_000)
 
-    return () => controller.abort()
+    return () => {
+      controller.abort()
+      window.clearInterval(intervalId)
+    }
   }, [])
 
   return state

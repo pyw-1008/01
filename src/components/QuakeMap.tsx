@@ -1,7 +1,10 @@
 import 'leaflet/dist/leaflet.css'
+import { useEffect, useMemo, useState } from 'react'
 import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
+import { useMap } from 'react-leaflet/hooks'
 import { useEarthquakes, type Earthquake } from '../hooks/useEarthquakes'
 import { severity } from '../lib/severity'
+import EventList from './EventList'
 import StatsPanel from './StatsPanel'
 import TopBar from './TopBar'
 
@@ -79,8 +82,54 @@ function QuakeMarker({ quake }: { quake: Earthquake }) {
   )
 }
 
+function FlyToSelected({ quake }: { quake: Earthquake | null }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!quake) {
+      return
+    }
+
+    map.flyTo([quake.lat, quake.lng], Math.max(map.getZoom(), 5), {
+      duration: 1.1,
+      easeLinearity: 0.2,
+    })
+  }, [map, quake])
+
+  return null
+}
+
+function SelectedQuakePopup({ quake }: { quake: Earthquake | null }) {
+  if (!quake) {
+    return null
+  }
+
+  return (
+    <Popup position={[quake.lat, quake.lng]}>
+      <div className="quake-popup">
+        <strong>{quake.place}</strong>
+        <span>Magnitude: {formatMagnitude(quake.mag)}</span>
+        <span>Depth: {formatDepth(quake.depth)}</span>
+        <span>Time: {formatTime(quake.time)}</span>
+      </div>
+    </Popup>
+  )
+}
+
 function QuakeMap() {
-  const { data, loading, error, empty, lastUpdated } = useEarthquakes()
+  const { data, loading, refreshing, error, empty, lastUpdated, newEventIds } =
+    useEarthquakes()
+  const [minMagnitude, setMinMagnitude] = useState(0)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const visibleQuakes = useMemo(
+    () => data.filter((quake) => (quake.mag ?? 0) >= minMagnitude),
+    [data, minMagnitude],
+  )
+  const selectedQuake = visibleQuakes.find((quake) => quake.id === selectedId) ?? null
+
+  function handleSelectQuake(quake: Earthquake) {
+    setSelectedId(quake.id)
+  }
 
   return (
     <main className="quake-map-screen">
@@ -97,9 +146,11 @@ function QuakeMap() {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
-        {data.map((quake) => (
+        {visibleQuakes.map((quake) => (
           <QuakeMarker key={quake.id} quake={quake} />
         ))}
+        <FlyToSelected quake={selectedQuake} />
+        <SelectedQuakePopup quake={selectedQuake} />
       </MapContainer>
       {(loading || error || empty) && (
         <div className="map-status" role="status">
@@ -108,8 +159,18 @@ function QuakeMap() {
           {empty && 'No earthquakes reported in the last 24 hours.'}
         </div>
       )}
-      <TopBar />
-      <StatsPanel quakes={data} lastUpdated={lastUpdated} />
+      <TopBar
+        minMagnitude={minMagnitude}
+        refreshing={refreshing}
+        onMinMagnitudeChange={setMinMagnitude}
+      />
+      <StatsPanel quakes={visibleQuakes} lastUpdated={lastUpdated} />
+      <EventList
+        newEventIds={newEventIds}
+        quakes={visibleQuakes}
+        selectedId={selectedId}
+        onSelect={handleSelectQuake}
+      />
       <div className="map-vignette" aria-hidden="true" />
       <div className="map-grid" aria-hidden="true" />
     </main>

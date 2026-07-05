@@ -2,6 +2,8 @@ import 'leaflet/dist/leaflet.css'
 import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
 import { useEarthquakes, type Earthquake } from '../hooks/useEarthquakes'
 import { severity } from '../lib/severity'
+import StatsPanel from './StatsPanel'
+import TopBar from './TopBar'
 
 function markerRadius(mag: number | null) {
   return Math.max(4, Math.min(18, 4 + (mag ?? 0) * 2.2))
@@ -78,7 +80,7 @@ function QuakeMarker({ quake }: { quake: Earthquake }) {
 }
 
 function QuakeMap() {
-  const { data, loading, error, empty } = useEarthquakes()
+  const { data, loading, error, empty, lastUpdated } = useEarthquakes()
 
   return (
     <main className="quake-map-screen">
@@ -106,6 +108,8 @@ function QuakeMap() {
           {empty && 'No earthquakes reported in the last 24 hours.'}
         </div>
       )}
+      <TopBar />
+      <StatsPanel quakes={data} lastUpdated={lastUpdated} />
       <div className="map-vignette" aria-hidden="true" />
       <div className="map-grid" aria-hidden="true" />
     </main>

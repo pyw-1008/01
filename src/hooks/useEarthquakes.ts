@@ -34,6 +34,7 @@ type EarthquakeState = {
   loading: boolean
   error: string | null
   empty: boolean
+  lastUpdated: number | null
 }
 
 function isValidCoordinate(lng: unknown, lat: unknown) {
@@ -78,6 +79,7 @@ export function useEarthquakes(): EarthquakeState {
     loading: true,
     error: null,
     empty: false,
+    lastUpdated: null,
   })
 
   useEffect(() => {
@@ -106,6 +108,7 @@ export function useEarthquakes(): EarthquakeState {
           loading: false,
           error: null,
           empty: data.length === 0,
+          lastUpdated: Date.now(),
         })
       } catch (error) {
         if (controller.signal.aborted) {
@@ -117,6 +120,7 @@ export function useEarthquakes(): EarthquakeState {
           loading: false,
           error: error instanceof Error ? error.message : 'Failed to load earthquakes',
           empty: false,
+          lastUpdated: null,
         })
       }
     }

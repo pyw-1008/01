@@ -1,7 +1,5 @@
-import { useEffect, useState } from 'react'
-
-const USGS_DAY_FEED =
-  'https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/all_day.geojson'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { USGS_FEEDS, type TimeRangeKey } from '../lib/usgsFeeds'
 
 export type Earthquake = {
   id: string
@@ -11,6 +9,7 @@ export type Earthquake = {
   lng: number
   lat: number
   depth: number | null
+  detailUrl?: string
 }
 
 type UsgsFeature = {
@@ -19,6 +18,7 @@ type UsgsFeature = {
     mag?: number | null
     place?: string | null
     time?: number | null
+    url?: string | null
   }
   geometry?: {
     coordinates?: [number, number, number?]
@@ -37,6 +37,7 @@ type EarthquakeState = {
   empty: boolean
   lastUpdated: number | null
   newEventIds: Set<string>
+  refresh: () => void
 }
 
 function isValidCoordinate(lng: unknown, lat: unknown) {
@@ -72,10 +73,12 @@ function toEarthquake(feature: UsgsFeature): Earthquake | null {
     lng: lng,
     lat: lat,
     depth: typeof depth === 'number' && Number.isFinite(depth) ? depth : null,
+    detailUrl: feature.properties?.url ?? undefined,
   }
 }
 
-export function useEarthquakes(): EarthquakeState {
+export function useEarthquakes(timeRange: TimeRangeKey): EarthquakeState {
+  const abortRef = useRef<AbortController | null>(null)
   const [state, setState] = useState<EarthquakeState>({
     data: [],
     loading: true,
@@ -84,21 +87,24 @@ export function useEarthquakes(): EarthquakeState {
     empty: false,
     lastUpdated: null,
     newEventIds: new Set(),
+    refresh: () => undefined,
   })
 
-  useEffect(() => {
+  const loadEarthquakes = useCallback(
+    async (mode: 'range' | 'refresh' | 'manual' = 'range') => {
+      abortRef.current?.abort()
     const controller = new AbortController()
+      abortRef.current = controller
 
-    async function loadEarthquakes(isRefresh = false) {
       setState((current) => ({
         ...current,
-        loading: !isRefresh && current.data.length === 0,
-        refreshing: isRefresh,
+        loading: current.data.length === 0,
+        refreshing: current.data.length > 0 || mode !== 'range',
         error: null,
       }))
 
       try {
-        const response = await fetch(USGS_DAY_FEED, {
+        const response = await fetch(USGS_FEEDS[timeRange].url, {
           signal: controller.signal,
         })
 
@@ -115,7 +121,7 @@ export function useEarthquakes(): EarthquakeState {
         setState((current) => {
           const previousIds = new Set(current.data.map((quake) => quake.id))
           const newEventIds =
-            isRefresh && previousIds.size > 0
+            mode !== 'range' && previousIds.size > 0
               ? new Set(data.filter((quake) => !previousIds.has(quake.id)).map((quake) => quake.id))
               : new Set<string>()
 
@@ -127,6 +133,7 @@ export function useEarthquakes(): EarthquakeState {
             empty: data.length === 0,
             lastUpdated: Date.now(),
             newEventIds,
+            refresh: current.refresh,
           }
         })
       } catch (error) {
@@ -142,20 +149,32 @@ export function useEarthquakes(): EarthquakeState {
           empty: current.data.length === 0,
           lastUpdated: current.lastUpdated,
           newEventIds: new Set(),
+          refresh: current.refresh,
         }))
       }
-    }
+    },
+    [timeRange],
+  )
 
-    void loadEarthquakes()
+  const refresh = useCallback(() => {
+    void loadEarthquakes('manual')
+  }, [loadEarthquakes])
+
+  useEffect(() => {
+    setState((current) => ({ ...current, refresh }))
+  }, [refresh])
+
+  useEffect(() => {
+    void loadEarthquakes('range')
     const intervalId = window.setInterval(() => {
-      void loadEarthquakes(true)
+      void loadEarthquakes('refresh')
     }, 60_000)
 
     return () => {
-      controller.abort()
       window.clearInterval(intervalId)
+      abortRef.current?.abort()
     }
-  }, [])
+  }, [loadEarthquakes])
 
   return state
 }

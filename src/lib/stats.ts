@@ -1,5 +1,5 @@
 import type { Earthquake } from '../hooks/useEarthquakes'
-import { severity, type MagnitudeLevel } from './severity'
+import { severity, type MagnitudeLevel } from './severity.ts'
 
 export type SeverityBucket = {
   level: MagnitudeLevel

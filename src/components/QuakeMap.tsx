@@ -4,6 +4,7 @@ import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
 import { useMap } from 'react-leaflet/hooks'
 import { useEarthquakes, type Earthquake } from '../hooks/useEarthquakes'
 import { severity } from '../lib/severity'
+import { DEFAULT_TIME_RANGE, USGS_FEEDS, type TimeRangeKey } from '../lib/usgsFeeds'
 import EventList from './EventList'
 import StatsPanel from './StatsPanel'
 import TopBar from './TopBar'
@@ -75,6 +76,11 @@ function QuakeMarker({ quake }: { quake: Earthquake }) {
             <span>Magnitude: {formatMagnitude(quake.mag)}</span>
             <span>Depth: {formatDepth(quake.depth)}</span>
             <span>Time: {formatTime(quake.time)}</span>
+            {quake.detailUrl && (
+              <a href={quake.detailUrl} rel="noreferrer" target="_blank">
+                USGS details
+              </a>
+            )}
           </div>
         </Popup>
       </CircleMarker>
@@ -111,14 +117,20 @@ function SelectedQuakePopup({ quake }: { quake: Earthquake | null }) {
         <span>Magnitude: {formatMagnitude(quake.mag)}</span>
         <span>Depth: {formatDepth(quake.depth)}</span>
         <span>Time: {formatTime(quake.time)}</span>
+        {quake.detailUrl && (
+          <a href={quake.detailUrl} rel="noreferrer" target="_blank">
+            USGS details
+          </a>
+        )}
       </div>
     </Popup>
   )
 }
 
 function QuakeMap() {
-  const { data, loading, refreshing, error, empty, lastUpdated, newEventIds } =
-    useEarthquakes()
+  const [timeRange, setTimeRange] = useState<TimeRangeKey>(DEFAULT_TIME_RANGE)
+  const { data, loading, refreshing, error, empty, lastUpdated, newEventIds, refresh } =
+    useEarthquakes(timeRange)
   const [minMagnitude, setMinMagnitude] = useState(0)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const visibleQuakes = useMemo(
@@ -126,6 +138,12 @@ function QuakeMap() {
     [data, minMagnitude],
   )
   const selectedQuake = visibleQuakes.find((quake) => quake.id === selectedId) ?? null
+  const filteredEmpty = !loading && !error && data.length > 0 && visibleQuakes.length === 0
+
+  function handleTimeRangeChange(nextTimeRange: TimeRangeKey) {
+    setTimeRange(nextTimeRange)
+    setSelectedId(null)
+  }
 
   function handleSelectQuake(quake: Earthquake) {
     setSelectedId(quake.id)
@@ -152,19 +170,27 @@ function QuakeMap() {
         <FlyToSelected quake={selectedQuake} />
         <SelectedQuakePopup quake={selectedQuake} />
       </MapContainer>
-      {(loading || error || empty) && (
+      {(loading || error || empty || filteredEmpty) && (
         <div className="map-status" role="status">
           {loading && 'Loading USGS earthquakes...'}
           {error && `USGS data unavailable: ${error}`}
           {empty && 'No earthquakes reported in the last 24 hours.'}
+          {filteredEmpty && 'No earthquakes match the current magnitude filter.'}
         </div>
       )}
       <TopBar
         minMagnitude={minMagnitude}
         refreshing={refreshing}
+        timeRange={timeRange}
         onMinMagnitudeChange={setMinMagnitude}
+        onRefresh={refresh}
+        onTimeRangeChange={handleTimeRangeChange}
       />
-      <StatsPanel quakes={visibleQuakes} lastUpdated={lastUpdated} />
+      <StatsPanel
+        quakes={visibleQuakes}
+        lastUpdated={lastUpdated}
+        timeRangeLabel={USGS_FEEDS[timeRange].label}
+      />
       <EventList
         newEventIds={newEventIds}
         quakes={visibleQuakes}

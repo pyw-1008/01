@@ -1,4 +1,4 @@
-import { timeAgo } from './timeAgo'
+import { timeAgo } from './timeAgo.ts'
 
 function assertEqual(actual: string, expected: string) {
   if (actual !== expected) {

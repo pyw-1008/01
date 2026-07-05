@@ -1,4 +1,4 @@
-import { severity, type MagnitudeLevel } from './severity'
+import { severity, type MagnitudeLevel } from './severity.ts'
 
 type SeverityCase = {
   mag: number | null | undefined

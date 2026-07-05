@@ -4,6 +4,7 @@ import { stats } from '../lib/stats'
 type StatsPanelProps = {
   quakes: Earthquake[]
   lastUpdated: number | null
+  timeRangeLabel: string
 }
 
 function formatMagnitude(mag: number) {
@@ -23,13 +24,13 @@ function formatLastUpdated(lastUpdated: number | null) {
   }).format(new Date(lastUpdated))
 }
 
-function StatsPanel({ quakes, lastUpdated }: StatsPanelProps) {
+function StatsPanel({ quakes, lastUpdated, timeRangeLabel }: StatsPanelProps) {
   const quakeStats = stats(quakes)
 
   return (
     <aside className="stats-panel" aria-label="Earthquake statistics">
       <section className="stats-card stats-card-primary">
-        <span className="stats-label">Past 24 hours</span>
+        <span className="stats-label">{timeRangeLabel}</span>
         <strong className="stats-total">{quakeStats.total}</strong>
         <span className="stats-hint">recorded earthquakes</span>
         <div className="stats-mini-grid" aria-label="Summary metrics">

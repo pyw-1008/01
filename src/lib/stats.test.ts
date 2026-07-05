@@ -1,5 +1,5 @@
 import type { Earthquake } from '../hooks/useEarthquakes'
-import { stats } from './stats'
+import { stats } from './stats.ts'
 
 const baseQuake = {
   id: 'sample',
@@ -25,6 +25,10 @@ function assert(condition: boolean, message: string) {
   }
 }
 
+function assertClose(actual: number | null, expected: number, message: string) {
+  assert(actual !== null && Math.abs(actual - expected) < 0.0001, message)
+}
+
 export function runStatsTests() {
   const empty = stats([])
 
@@ -43,7 +47,7 @@ export function runStatsTests() {
   ])
 
   assert(result.total === 5, 'total should include null magnitude events')
-  assert(result.averageMagnitude === 3.625, 'average should ignore null values')
+  assertClose(result.averageMagnitude, 3.625, 'average should ignore null values')
   assert(result.strongCount === 1, 'strong count should count magnitude >= 6')
   assert(result.maxMagnitude?.mag === 6.1, 'max magnitude should ignore null values')
   assert(result.maxMagnitude?.place === 'Strong place', 'max magnitude should keep place')
